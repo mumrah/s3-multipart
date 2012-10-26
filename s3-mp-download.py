@@ -87,10 +87,6 @@ def main():
             raise ValueError("Destination file '%s' exists, specify -f to"
                              " overwrite" % args.dest)
 
-    # Touch the file
-    fd = os.open(args.dest, os.O_CREAT)
-    os.close(fd)
-
     # Split out the bucket and the key
     s3 = boto.connect_s3()
     bucket = s3.lookup(split_rs.netloc)
@@ -102,24 +98,36 @@ def main():
     size = int(resp.getheader("content-length"))
     logging.info("Got headers: %s" % resp.getheaders())
 
-    num_parts = args.num_processes
-
-    def arg_iterator(num_parts):
-        for min_byte, max_byte in gen_byte_ranges(size, num_parts):
-            yield (bucket.name, key.name, args.dest, min_byte, max_byte)
-
-    s = size / 1024 / 1024.
-    try:
+    # Skipping multipart if file is less than 1mb
+    if size < 1024 * 1024:
         t1 = time.time()
-        pool = Pool(processes=args.num_processes)
-        pool.map_async(do_part_download, arg_iterator(num_parts)).get(9999999)
+        key.get_contents_to_filename(args.dest)
         t2 = time.time() - t1
-        log.info("Finished downloading %0.2fM in %0.2fs (%0.2fMbps)" %
-                (s, t2, s/t2))
-    except KeyboardInterrupt:
-        log.info("User terminated")
-    except Exception, err:
-        log.error(err)
+        log.info("Finished single-part download of %0.2fM in %0.2fs (%0.2fMbps)" %
+                (size, t2, size/t2))
+    else:
+        # Touch the file
+        fd = os.open(args.dest, os.O_CREAT)
+        os.close(fd)
+    
+        num_parts = args.num_processes
+
+        def arg_iterator(num_parts):
+            for min_byte, max_byte in gen_byte_ranges(size, num_parts):
+                yield (bucket.name, key.name, args.dest, min_byte, max_byte)
+
+        s = size / 1024 / 1024.
+        try:
+            t1 = time.time()
+            pool = Pool(processes=args.num_processes)
+            pool.map_async(do_part_download, arg_iterator(num_parts)).get(9999999)
+            t2 = time.time() - t1
+            log.info("Finished downloading %0.2fM in %0.2fs (%0.2fMbps)" %
+                    (s, t2, s/t2))
+        except KeyboardInterrupt:
+            log.info("User terminated")
+        except Exception, err:
+            log.error(err)
 
 if __name__ == "__main__":
     main()
