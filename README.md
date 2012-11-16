@@ -54,3 +54,7 @@ http://aws.typepad.com/aws/2010/11/amazon-s3-multipart-upload.html
 
 As always, mad props to the Boto project and it's maintainer, Mitch
 https://github.com/boto/boto
+
+# License
+
+Copyright 2012, David Arthur under Apache License, v2.0. See `LICENSE`
