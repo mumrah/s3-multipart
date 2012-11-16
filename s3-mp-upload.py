@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(description="Transfer large files to S3",
         prog="s3-mp-upload")
 parser.add_argument("src", type=file, help="The file to transfer")
 parser.add_argument("dest", help="The S3 destination object")
-parser.add_argument("-n", "--num-processes", help="Number of processors to use",
+parser.add_argument("-np", "--num-processes", help="Number of processors to use",
         type=int, default=2)
 parser.add_argument("-f", "--force", help="Overwrite an existing S3 key",
         action="store_true")
