@@ -18,6 +18,7 @@ parser.add_argument("-np", "--num-processes", help="Number of processors to use"
 parser.add_argument("-f", "--force", help="Overwrite an existing S3 key",
         action="store_true")
 parser.add_argument("-s", "--split", help="Split size, in Mb", type=int, default=50)
+parser.add_argument("-rrs", "--reduced-redundancy", help="Use reduced redundancy storage. Default is standard.", default=False,  action="store_true")
 
 logger = logging.getLogger("s3-mp-upload")
 
@@ -95,7 +96,7 @@ def main():
     num_parts = int(ceil(size / part_size))
 
     # Create the multi-part upload object
-    mpu = bucket.initiate_multipart_upload(split_rs.path)
+    mpu = bucket.initiate_multipart_upload(split_rs.path, reduced_redundancy=args.reduced_redundancy)
     def it(num_parts):
         for i in range(num_parts+1):
             yield (bucket.name, mpu.id, args.src.name, part_size, i)
