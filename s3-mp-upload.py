@@ -97,6 +97,16 @@ def main():
     size = args.src.tell()
     num_parts = int(ceil(size / part_size))
 
+    # If file is less than 5M, just upload it directly
+    if size < 5*1024*1024:
+        args.src.seek(0)
+        t1 = time.time()
+        key.set_contents_from_file(args.src)
+        t2 = time.time() - t1
+        s = size/1024./1024.
+        logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMbps)" % (s, t2, s/t2))
+        return
+
     # Create the multi-part upload object
     mpu = bucket.initiate_multipart_upload(split_rs.path, reduced_redundancy=args.reduced_redundancy)
     logger.info("Initialized upload: %s" % mpu.id)
