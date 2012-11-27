@@ -71,56 +71,49 @@ def do_part_upload(args):
     s = len(data)/1024./1024.
     logger.info("Uploaded part %s (%0.2fM) in %0.2fs at %0.2fMbps" % (i+1, s, t2, s/t2))
 
-def main():
-    args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO)
-    if args.verbose == True:
-        logger.setLevel(logging.DEBUG)
-    logger.debug("Got CLI args: %s" % args)
-
+def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=False, verbose=False):
     # Check that dest is a valid S3 url
-    split_rs = urlparse.urlsplit(args.dest)
+    split_rs = urlparse.urlsplit(dest)
     if split_rs.scheme != "s3":
-        raise ValueError("'%s' is not an S3 url" % args.dest)
+        raise ValueError("'%s' is not an S3 url" % dest)
 
     s3 = boto.connect_s3()
     bucket = s3.lookup(split_rs.netloc)
     key = bucket.get_key(split_rs.path)
     # See if we're overwriting an existing key
     if key is not None:
-        if not args.force:
-            raise ValueError("'%s' already exists. Specify -f to overwrite it" % args.dest)
+        if not force:
+            raise ValueError("'%s' already exists. Specify -f to overwrite it" % dest)
 
     # Determine the splits
-    part_size = max(5*1024*1024, 1024*1024*args.split)
-    args.src.seek(0,2)
-    size = args.src.tell()
+    part_size = max(5*1024*1024, 1024*1024*split)
+    src.seek(0,2)
+    size = src.tell()
     num_parts = int(ceil(size / part_size))
 
     # If file is less than 5M, just upload it directly
     if size < 5*1024*1024:
-        args.src.seek(0)
+        src.seek(0)
         t1 = time.time()
-        key.set_contents_from_file(args.src)
+        key.set_contents_from_file(src)
         t2 = time.time() - t1
         s = size/1024./1024.
         logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMbps)" % (s, t2, s/t2))
         return
 
     # Create the multi-part upload object
-    mpu = bucket.initiate_multipart_upload(split_rs.path, reduced_redundancy=args.reduced_redundancy)
+    mpu = bucket.initiate_multipart_upload(split_rs.path, reduced_redundancy=reduced_redundancy)
     logger.info("Initialized upload: %s" % mpu.id)
-
 
     # Generate arguments for invocations of do_part_upload
     def gen_args(num_parts, fold_last):
         for i in range(num_parts+1):
             part_start = part_size*i
             if i == (num_parts-1) and fold_last is True:
-                yield (bucket.name, mpu.id, args.src.name, i, part_start, part_size*2)
+                yield (bucket.name, mpu.id, src.name, i, part_start, part_size*2)
                 break
             else:
-                yield (bucket.name, mpu.id, args.src.name, i, part_start, part_size)
+                yield (bucket.name, mpu.id, src.name, i, part_start, part_size)
 
 
     # If the last part is less than 5M, just fold it into the previous part
@@ -129,14 +122,14 @@ def main():
     # Do the thing
     try:
         # Create a pool of workers
-        pool = Pool(processes=args.num_processes)
+        pool = Pool(processes=num_processes)
         t1 = time.time()
         pool.map(do_part_upload, gen_args(num_parts, fold_last))
         # Print out some timings
         t2 = time.time() - t1
         s = size/1024./1024.
         # Finalize
-        args.src.close()
+        src.close()
         mpu.complete_upload()
         logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMbps)" % (s, t2, s/t2))
     except Exception, err:
@@ -145,4 +138,10 @@ def main():
         mpu.cancel_upload()
 
 if __name__ == "__main__":
-    main()
+    logging.basicConfig(level=logging.INFO)
+    args = parser.parse_args()
+    arg_dict = vars(args)
+    if arg_dict['verbose'] == True:
+        logger.setLevel(logging.DEBUG)
+    logger.debug("CLI args: %s" % args)
+    main(**arg_dict)
