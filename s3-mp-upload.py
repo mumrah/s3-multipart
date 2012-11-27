@@ -4,6 +4,7 @@ from cStringIO import StringIO
 import logging
 from math import ceil
 from multiprocessing import Pool
+import sys
 import time
 import urlparse
 
@@ -62,9 +63,12 @@ def do_part_upload(args):
     if not data:
         raise Exception("Unexpectedly tried to read an empty chunk")
 
+    def progress(x,y):
+        logger.info("Part %d: %0.2f%%" % (i+1, 1.*x/y))
+
     # Do the upload
     t1 = time.time()
-    mpu.upload_part_from_file(StringIO(data), i+1)
+    mpu.upload_part_from_file(StringIO(data), i+1, cb=progress)
 
     # Print some timings
     t2 = time.time() - t1
@@ -124,7 +128,7 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
         # Create a pool of workers
         pool = Pool(processes=num_processes)
         t1 = time.time()
-        pool.map(do_part_upload, gen_args(num_parts, fold_last))
+        pool.map_async(do_part_upload, gen_args(num_parts, fold_last)).get(9999999)
         # Print out some timings
         t2 = time.time() - t1
         s = size/1024./1024.
@@ -132,6 +136,10 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
         src.close()
         mpu.complete_upload()
         logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMbps)" % (s, t2, s/t2))
+    except KeyboardInterrupt:
+        logger.warn("Received KeyboardInterrupt, canceling upload")
+        pool.terminate()
+        mpu.cancel_upload()
     except Exception, err:
         logger.error("Encountered an error, canceling upload")
         logger.error(err)
