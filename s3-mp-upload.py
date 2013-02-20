@@ -93,7 +93,7 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
     part_size = max(5*1024*1024, 1024*1024*split)
     src.seek(0,2)
     size = src.tell()
-    num_parts = int(ceil(1.0 * size / part_size))
+    num_parts = int(ceil(size / part_size))
 
     # If file is less than 5M, just upload it directly
     if size < 5*1024*1024:
