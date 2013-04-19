@@ -99,7 +99,7 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
     if size < 5*1024*1024:
         src.seek(0)
         t1 = time.time()
-	k = boto.s3.key.Key(bucket,split_rs.path)
+        k = boto.s3.key.Key(bucket,split_rs.path)
         k.set_contents_from_file(src)
         t2 = time.time() - t1
         s = size/1024./1024.
