@@ -99,7 +99,8 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
     if size < 5*1024*1024:
         src.seek(0)
         t1 = time.time()
-        key.set_contents_from_file(src)
+	k = boto.s3.key.Key(bucket,split_rs.path)
+        k.set_contents_from_file(src)
         t2 = time.time() - t1
         s = size/1024./1024.
         logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMbps)" % (s, t2, s/t2))
