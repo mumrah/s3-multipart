@@ -92,18 +92,20 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
     src_bucket = s3.lookup( src_bucket_name )
     src_key    = src_bucket.get_key( src_key_name )
     size       = src_key.size
-    part_size   = max(5*1024*1024, 1024*1024*split)
-    num_parts   = int(ceil(size / part_size))
-    logging.info("Source object is %d bytes splitting into %d parts of size %d " % (size, num_parts, part_size) )
 
     # If file is less than 5G, copy it directly
     if size < 5*1024*1024*1024:
+        logging.info("Source object is %0.2fM copying it directly" % ( size/1024./1024. ))
         t1 = time.time()
-        src_key.copy( dest_bucket, dest_key, reduced_redundancy=reduced_redundancy )
+        src_key.copy( dest_bucket_name, dest_key_name, reduced_redundancy=reduced_redundancy )
         t2 = time.time() - t1
         s = size/1024./1024.
         logger.info("Finished copying %0.2fM in %0.2fs (%0.2fMbps)" % (s, t2, s/t2))
         return
+
+    part_size   = max(5*1024*1024, 1024*1024*split)
+    num_parts   = int(ceil(size / part_size))
+    logging.info("Source object is %0.2fM splitting into %d parts of size %0.2fM" % (size/1024./1024., num_parts, part_size/1024./1024.) )
 
     # Create the multi-part upload object
     mpu = dest_bucket.initiate_multipart_upload( dest_key_name, reduced_redundancy=reduced_redundancy)
