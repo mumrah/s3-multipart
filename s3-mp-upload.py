@@ -64,7 +64,7 @@ def do_part_upload(args):
         raise Exception("Unexpectedly tried to read an empty chunk")
 
     def progress(x,y):
-        logger.info("Part %d: %0.2f%%" % (i+1, 1.*x/y))
+        logger.debug("Part %d: %0.2f%%" % (i+1, 100.*x/y))
 
     # Do the upload
     t1 = time.time()
