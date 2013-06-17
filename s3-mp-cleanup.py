@@ -28,7 +28,7 @@ def main(uri, cancel):
             break
     else:
         if cancel:
-            print("No multipart upload {} found in {}".format(cancel, uri))
+            print("No multipart upload {} found for {}".format(cancel, uri))
         
     
 
