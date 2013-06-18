@@ -4,7 +4,6 @@ from cStringIO import StringIO
 import logging
 from math import ceil
 from multiprocessing import Pool
-import sys
 import time
 import urlparse
 

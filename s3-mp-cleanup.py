@@ -17,7 +17,6 @@ def main(uri, cancel):
 
     s3 = boto.connect_s3()
     bucket = s3.lookup(split_rs.netloc)
-    key = bucket.get_key(split_rs.path)
     
     mpul = bucket.list_multipart_uploads()
     for mpu in mpul:
@@ -29,6 +28,7 @@ def main(uri, cancel):
     else:
         if cancel:
             print("No multipart upload {} found for {}".format(cancel, uri))
+            sys.exit(1)
         
     
 
