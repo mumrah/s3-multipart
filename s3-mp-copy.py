@@ -104,7 +104,7 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
         return
 
     part_size   = max(5*1024*1024, 1024*1024*split)
-    num_parts   = int(ceil(size / part_size))
+    num_parts   = int(ceil(size / float(part_size)))
     logging.info("Source object is %0.2fM splitting into %d parts of size %0.2fM" % (size/1024./1024., num_parts, part_size/1024./1024.) )
 
     # Create the multi-part upload object
@@ -117,7 +117,7 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
         for i in range(num_parts):
             part_start = cur_pos
             cur_pos    = cur_pos + part_size
-            part_end   = min(cur_pos - 1, size)
+            part_end   = min(cur_pos - 1, size - 1)
             part_num   = i + 1
             yield (src_bucket_name, src_key_name, dest_bucket_name, mpu.id, part_num, part_start, part_end)
 
