@@ -4,7 +4,6 @@ from cStringIO import StringIO
 import logging
 from math import ceil
 from multiprocessing import Pool
-import sys
 import time
 import urlparse
 
@@ -21,6 +20,7 @@ parser.add_argument("-f", "--force", help="Overwrite an existing S3 key",
 parser.add_argument("-s", "--split", help="Split size, in Mb", type=int, default=50)
 parser.add_argument("-rrs", "--reduced-redundancy", help="Use reduced redundancy storage. Default is standard.", default=False,  action="store_true")
 parser.add_argument("-v", "--verbose", help="Be more verbose", default=False, action="store_true")
+parser.add_argument("-q", "--quiet", help="Be less verbose (for use in cron jobs)", default=False, action="store_true")
 
 logger = logging.getLogger("s3-mp-upload")
 
@@ -64,7 +64,7 @@ def do_part_upload(args):
         raise Exception("Unexpectedly tried to read an empty chunk")
 
     def progress(x,y):
-        logger.info("Part %d: %0.2f%%" % (i+1, 1.*x/y))
+        logger.debug("Part %d: %0.2f%%" % (i+1, 100.*x/y))
 
     # Do the upload
     t1 = time.time()
@@ -75,7 +75,7 @@ def do_part_upload(args):
     s = len(data)/1024./1024.
     logger.info("Uploaded part %s (%0.2fM) in %0.2fs at %0.2fMbps" % (i+1, s, t2, s/t2))
 
-def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=False, verbose=False):
+def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=False, verbose=False, quiet=False):
     # Check that dest is a valid S3 url
     split_rs = urlparse.urlsplit(dest)
     if split_rs.scheme != "s3":
@@ -150,6 +150,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args()
     arg_dict = vars(args)
+    if arg_dict['quiet'] == True:
+        logger.setLevel(logging.WARNING)
     if arg_dict['verbose'] == True:
         logger.setLevel(logging.DEBUG)
     logger.debug("CLI args: %s" % args)
