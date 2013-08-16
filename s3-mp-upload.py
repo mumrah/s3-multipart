@@ -83,6 +83,8 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
 
     s3 = boto.connect_s3()
     bucket = s3.lookup(split_rs.netloc)
+    if bucket == None:
+        raise ValueError("Bucket '%s' does not exisit." % split_rs.netloc)
     key = bucket.get_key(split_rs.path)
     # See if we're overwriting an existing key
     if key is not None:
