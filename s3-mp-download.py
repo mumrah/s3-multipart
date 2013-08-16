@@ -65,7 +65,7 @@ def do_part_download(args):
     t2 = time.time() - t1
     os.close(fd)
     s = s / 1024 / 1024.
-    logger.debug("Downloaded %0.2fM in %0.2fs at %0.2fMBps" % (s, t2, s/t2))
+    logger.debug("Downloaded %0.2fM in %0.2fs at %0.2fMbps" % (s, t2, s/t2*8))
 
 def gen_byte_ranges(size, num_parts):
     part_size = int(ceil(1. * size / num_parts))
@@ -106,8 +106,8 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
         t1 = time.time()
         key.get_contents_to_filename(dest)
         t2 = time.time() - t1
-        log.info("Finished single-part download of %0.2fM in %0.2fs (%0.2fMBps)" %
-                (size, t2, size/t2))
+        log.info("Finished single-part download of %0.2fM in %0.2fs (%0.2fMbps)" %
+                (size, t2, size/t2*8))
     else:
         # Touch the file
         fd = os.open(dest, os.O_CREAT)
@@ -126,8 +126,8 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
             pool = Pool(processes=num_processes)
             pool.map_async(do_part_download, arg_iterator(num_parts)).get(9999999)
             t2 = time.time() - t1
-            logger.info("Finished downloading %0.2fM in %0.2fs (%0.2fMBps)" %
-                    (s, t2, s/t2))
+            logger.info("Finished downloading %0.2fM in %0.2fs (%0.2fMbps)" %
+                    (s, t2, s/t2*8))
         except KeyboardInterrupt:
             logger.warning("User terminated")
         except Exception, err:
