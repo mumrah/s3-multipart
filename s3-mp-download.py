@@ -8,6 +8,7 @@ import time
 import urlparse
 
 import boto
+from boto.s3.connection import OrdinaryCallingFormat
 
 parser = argparse.ArgumentParser(description="Download a file from S3 in parallel",
         prog="s3-mp-download")
@@ -37,7 +38,7 @@ def do_part_download(args):
                  chunk size, and part number
     """
     bucket_name, key_name, fname, min_byte, max_byte = args
-    conn = boto.connect_s3()
+    conn = boto.connect_s3(calling_format=OrdinaryCallingFormat())
 
     # Make the S3 request
     resp = conn.make_request("GET", bucket=bucket_name,
@@ -88,13 +89,21 @@ def main():
                              " overwrite" % args.dest)
 
     # Split out the bucket and the key
-    s3 = boto.connect_s3()
+    s3 = boto.connect_s3(calling_format=OrdinaryCallingFormat())
     bucket = s3.lookup(split_rs.netloc)
+    if bucket == None:
+      raise ValueError("'%s' is not a valid bucket" % split_rs.netloc)
+
     key = bucket.get_key(split_rs.path)
+    if key is None:
+      raise ValueError("'%s' does not exist." % split_rs.path)
 
     # Determine the total size and calculate byte ranges
-    conn = boto.connect_s3()
-    resp = conn.make_request("HEAD", bucket=bucket, key=key)
+    #conn = boto.connect_s3(calling_format=OrdinaryCallingFormat())
+    resp = s3.make_request("HEAD", bucket=bucket, key=key)
+    if resp is None:
+      raise ValueError("response is invalid.")
+      
     size = int(resp.getheader("content-length"))
     logging.info("Got headers: %s" % resp.getheaders())
 
