@@ -76,7 +76,7 @@ def do_part_upload(args):
     # Print some timings
     t2 = time.time() - t1
     s = len(data)/1024./1024.
-    logger.info("Uploaded part %s (%0.2fM) in %0.2fs at %0.2fMbps" % (i+1, s, t2, s/t2))
+    logger.info("Uploaded part %s (%0.2fM) in %0.2fs at %0.2fMBps" % (i+1, s, t2, s/t2))
 
 def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=False, verbose=False, quiet=False, secure=True):
     # Check that dest is a valid S3 url
@@ -109,7 +109,7 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
         k.set_contents_from_file(src)
         t2 = time.time() - t1
         s = size/1024./1024.
-        logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMbps)" % (s, t2, s/t2))
+        logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMBps)" % (s, t2, s/t2))
         return
 
     # Create the multi-part upload object
@@ -142,7 +142,7 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
         # Finalize
         src.close()
         mpu.complete_upload()
-        logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMbps)" % (s, t2, s/t2))
+        logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMBps)" % (s, t2, s/t2))
     except KeyboardInterrupt:
         logger.warn("Received KeyboardInterrupt, canceling upload")
         pool.terminate()
