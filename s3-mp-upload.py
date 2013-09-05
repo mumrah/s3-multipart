@@ -19,6 +19,8 @@ parser.add_argument("-f", "--force", help="Overwrite an existing S3 key",
         action="store_true")
 parser.add_argument("-s", "--split", help="Split size, in Mb", type=int, default=50)
 parser.add_argument("-rrs", "--reduced-redundancy", help="Use reduced redundancy storage. Default is standard.", default=False,  action="store_true")
+parser.add_argument("--insecure", dest='secure', help="Use HTTP for connection",
+        default=True, action="store_false")
 parser.add_argument("-v", "--verbose", help="Be more verbose", default=False, action="store_true")
 parser.add_argument("-q", "--quiet", help="Be less verbose (for use in cron jobs)", default=False, action="store_true")
 
@@ -41,11 +43,12 @@ def do_part_upload(args):
                  name, the part number, part offset, part size
     """
     # Multiprocessing args lameness
-    bucket_name, mpu_id, fname, i, start, size = args
+    bucket_name, mpu_id, fname, i, start, size, secure = args
     logger.debug("do_part_upload got args: %s" % (args,))
 
     # Connect to S3, get the MultiPartUpload
     s3 = boto.connect_s3()
+    s3.is_secure = secure
     bucket = s3.lookup(bucket_name)
     mpu = None
     for mp in bucket.list_multipart_uploads():
@@ -75,13 +78,14 @@ def do_part_upload(args):
     s = len(data)/1024./1024.
     logger.info("Uploaded part %s (%0.2fM) in %0.2fs at %0.2fMbps" % (i+1, s, t2, s/t2))
 
-def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=False, verbose=False, quiet=False):
+def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=False, verbose=False, quiet=False, secure=True):
     # Check that dest is a valid S3 url
     split_rs = urlparse.urlsplit(dest)
     if split_rs.scheme != "s3":
         raise ValueError("'%s' is not an S3 url" % dest)
 
     s3 = boto.connect_s3()
+    s3.is_secure = secure
     bucket = s3.lookup(split_rs.netloc)
     if bucket == None:
         raise ValueError("Bucket '%s' does not exisit." % split_rs.netloc)
@@ -117,10 +121,10 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
         for i in range(num_parts+1):
             part_start = part_size*i
             if i == (num_parts-1) and fold_last is True:
-                yield (bucket.name, mpu.id, src.name, i, part_start, part_size*2)
+                yield (bucket.name, mpu.id, src.name, i, part_start, part_size*2, secure)
                 break
             else:
-                yield (bucket.name, mpu.id, src.name, i, part_start, part_size)
+                yield (bucket.name, mpu.id, src.name, i, part_start, part_size, secure)
 
 
     # If the last part is less than 5M, just fold it into the previous part

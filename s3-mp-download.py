@@ -18,6 +18,8 @@ parser.add_argument("-np", "--num-processes", help="Number of processors to use"
 parser.add_argument("-s", "--split", help="Split size, in Mb", type=int, default=32)
 parser.add_argument("-f", "--force", help="Overwrite an existing file",
         action="store_true")
+parser.add_argument("--insecure", dest='secure', help="Use HTTP for connection",
+        default=True, action="store_false")
 parser.add_argument("-v", "--verbose", help="Be more verbose", default=False, action="store_true")
 parser.add_argument("-q", "--quiet", help="Be less verbose (for use in cron jobs)", 
         default=False, action="store_true")
@@ -40,8 +42,9 @@ def do_part_download(args):
                  The arguments are: S3 Bucket name, S3 key, local file name,
                  chunk size, and part number
     """
-    bucket_name, key_name, fname, min_byte, max_byte, split = args
+    bucket_name, key_name, fname, min_byte, max_byte, split, secure = args
     conn = boto.connect_s3()
+    conn.is_secure = secure
 
     # Make the S3 request
     resp = conn.make_request("GET", bucket=bucket_name,
@@ -65,14 +68,14 @@ def do_part_download(args):
     t2 = time.time() - t1
     os.close(fd)
     s = s / 1024 / 1024.
-    logger.debug("Downloaded %0.2fM in %0.2fs at %0.2fMbps" % (s, t2, s/t2*8))
+    logger.debug("Downloaded %0.2fM in %0.2fs at %0.2fMBps" % (s, t2, s/t2))
 
 def gen_byte_ranges(size, num_parts):
     part_size = int(ceil(1. * size / num_parts))
     for i in range(num_parts):
         yield (part_size*i, min(part_size*(i+1)-1, size-1))
 
-def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet=False):
+def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet=False, secure=True):
 
     # Check that src is a valid S3 url
     split_rs = urlparse.urlsplit(src)
@@ -89,6 +92,7 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
 
     # Split out the bucket and the key
     s3 = boto.connect_s3()
+    s3.is_secure = secure
     logger.debug("split_rs: %s" % str(split_rs))
     bucket = s3.lookup(split_rs.netloc)
     if bucket == None:
@@ -97,6 +101,7 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
 
     # Determine the total size and calculate byte ranges
     conn = boto.connect_s3()
+    conn.is_secure = secure
     resp = conn.make_request("HEAD", bucket=bucket, key=key)
     size = int(resp.getheader("content-length"))
     logger.debug("Got headers: %s" % resp.getheaders())
@@ -106,8 +111,8 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
         t1 = time.time()
         key.get_contents_to_filename(dest)
         t2 = time.time() - t1
-        log.info("Finished single-part download of %0.2fM in %0.2fs (%0.2fMbps)" %
-                (size, t2, size/t2*8))
+        log.info("Finished single-part download of %0.2fM in %0.2fs (%0.2fMBps)" %
+                (size, t2, size/t2))
     else:
         # Touch the file
         fd = os.open(dest, os.O_CREAT)
@@ -118,7 +123,7 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
 
         def arg_iterator(num_parts):
             for min_byte, max_byte in gen_byte_ranges(size, num_parts):
-                yield (bucket.name, key.name, dest, min_byte, max_byte, split)
+                yield (bucket.name, key.name, dest, min_byte, max_byte, split, secure)
 
         s = size / 1024 / 1024.
         try:
@@ -126,8 +131,8 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
             pool = Pool(processes=num_processes)
             pool.map_async(do_part_download, arg_iterator(num_parts)).get(9999999)
             t2 = time.time() - t1
-            logger.info("Finished downloading %0.2fM in %0.2fs (%0.2fMbps)" %
-                    (s, t2, s/t2*8))
+            logger.info("Finished downloading %0.2fM in %0.2fs (%0.2fMBps)" %
+                    (s, t2, s/t2))
         except KeyboardInterrupt:
             logger.warning("User terminated")
         except Exception, err:
@@ -136,6 +141,7 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args()
+    print args
     arg_dict = vars(args)
     if arg_dict['quiet'] == True:
         logger.setLevel(logging.WARNING)
