@@ -81,6 +81,10 @@ def main():
         raise ValueError("'%s' is not an S3 url" % args.src)
 
     # Check that dest does not exist
+    if os.path.isdir(args.dest):
+        filename = split_rs.path.split('/')[-1]
+	args.dest = os.path.join(args.dest, filename)
+
     if os.path.exists(args.dest):
         if args.force:
             os.remove(args.dest)
