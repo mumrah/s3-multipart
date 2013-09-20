@@ -74,7 +74,6 @@ def do_part_download(args):
     except Exception, err:
         if (current_tries > max_tries):
             logger.error(err)
-            break
         else:
             time.sleep(3)
             current_tries += 1
