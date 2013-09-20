@@ -20,6 +20,7 @@ parser.add_argument("-f", "--force", help="Overwrite an existing file",
         action="store_true")
 parser.add_argument("--insecure", dest='secure', help="Use HTTP for connection",
         default=True, action="store_false")
+parser.add_argument("-t", "--max-tries", help="Max allowed retries for http timeout", type=int, default=5)
 parser.add_argument("-v", "--verbose", help="Be more verbose", default=False, action="store_true")
 parser.add_argument("-q", "--quiet", help="Be less verbose (for use in cron jobs)", 
         default=False, action="store_true")
@@ -42,7 +43,7 @@ def do_part_download(args):
                  The arguments are: S3 Bucket name, S3 key, local file name,
                  chunk size, and part number
     """
-    bucket_name, key_name, fname, min_byte, max_byte, split, secure = args
+    bucket_name, key_name, fname, min_byte, max_byte, split, secure, max_tries, current_tries = args
     conn = boto.connect_s3()
     conn.is_secure = secure
 
@@ -59,23 +60,32 @@ def do_part_download(args):
     logger.debug("Reading HTTP stream in %dM chunks" % (chunk_size/1024./1024))
     t1 = time.time()
     s = 0
-    while True:
-        data = resp.read(chunk_size)
-        if data == "":
+    try:
+        while True:
+            data = resp.read(chunk_size)
+            if data == "":
+                break
+            os.write(fd, data)
+            s += len(data)
+        t2 = time.time() - t1
+        os.close(fd)
+        s = s / 1024 / 1024.
+        logger.debug("Downloaded %0.2fM in %0.2fs at %0.2fMBps" % (s, t2, s/t2))
+    except Exception, err:
+        if (current_tries > max_tries):
+            logger.error(err)
             break
-        os.write(fd, data)
-        s += len(data)
-    t2 = time.time() - t1
-    os.close(fd)
-    s = s / 1024 / 1024.
-    logger.debug("Downloaded %0.2fM in %0.2fs at %0.2fMBps" % (s, t2, s/t2))
+        else:
+            time.sleep(3)
+            current_tries += 1
+            do_part_download(bucket_name, key_name, fname, min_byte, max_byte, split, secure, max_tries, current_tries)
 
 def gen_byte_ranges(size, num_parts):
     part_size = int(ceil(1. * size / num_parts))
     for i in range(num_parts):
         yield (part_size*i, min(part_size*(i+1)-1, size-1))
 
-def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet=False, secure=True):
+def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet=False, secure=True, max_tries=5):
 
     # Check that src is a valid S3 url
     split_rs = urlparse.urlsplit(src)
@@ -123,7 +133,7 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
 
         def arg_iterator(num_parts):
             for min_byte, max_byte in gen_byte_ranges(size, num_parts):
-                yield (bucket.name, key.name, dest, min_byte, max_byte, split, secure)
+                yield (bucket.name, key.name, dest, min_byte, max_byte, split, secure, max_tries, 0)
 
         s = size / 1024 / 1024.
         try:
