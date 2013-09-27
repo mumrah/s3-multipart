@@ -72,6 +72,7 @@ def do_part_download(args):
         s = s / 1024 / 1024.
         logger.debug("Downloaded %0.2fM in %0.2fs at %0.2fMBps" % (s, t2, s/t2))
     except Exception, err:
+        logger.debug("Retry request %d of max %d times" % (current_tries, max_tries))
         if (current_tries > max_tries):
             logger.error(err)
         else:
