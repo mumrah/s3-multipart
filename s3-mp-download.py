@@ -83,7 +83,7 @@ def main():
     # Check that dest does not exist
     if os.path.isdir(args.dest):
         filename = split_rs.path.split('/')[-1]
-	args.dest = os.path.join(args.dest, filename)
+    args.dest = os.path.join(args.dest, filename)
 
     if os.path.exists(args.dest):
         if args.force:
