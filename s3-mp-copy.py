@@ -9,6 +9,8 @@ import time
 import urlparse
 
 import boto
+from boto.s3.connection import OrdinaryCallingFormat
+
 
 parser = argparse.ArgumentParser(description="Copy large files within S3",
         prog="s3-mp-copy")
@@ -47,7 +49,7 @@ def do_part_copy(args):
     logger.debug("do_part_copy got args: %s" % (args,))
 
     # Connect to S3, get the MultiPartUpload
-    s3 = boto.connect_s3()
+    s3 = boto.connect_s3(calling_format=OrdinaryCallingFormat())
     dest_bucket = s3.lookup(dest_bucket_name)
     mpu = None
     for mp in dest_bucket.list_multipart_uploads():
@@ -79,7 +81,7 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
     dest_bucket_name, dest_key_name = validate_url( dest )
     src_bucket_name, src_key_name   = validate_url( src )
 
-    s3 = boto.connect_s3()
+    s3 = boto.connect_s3(calling_format=OrdinaryCallingFormat())
     dest_bucket = s3.lookup( dest_bucket_name )
     dest_key    = dest_bucket.get_key( dest_key_name )
     
