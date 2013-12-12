@@ -20,6 +20,9 @@ parser.add_argument("-f", "--force", help="Overwrite an existing S3 key",
         action="store_true")
 parser.add_argument("-s", "--split", help="Split size, in Mb", type=int, default=50)
 parser.add_argument("-rrs", "--reduced-redundancy", help="Use reduced redundancy storage. Default is standard.", default=False,  action="store_true")
+parser.add_argument("--insecure", dest='secure', help="Use HTTP for connection",
+        default=True, action="store_false")
+parser.add_argument("-t", "--max-tries", help="Max allowed retries for http timeout", type=int, default=5)
 parser.add_argument("-v", "--verbose", help="Be more verbose", default=False, action="store_true")
 parser.add_argument("-q", "--quiet", help="Be less verbose (for use in cron jobs)", default=False, action="store_true")
 
@@ -42,11 +45,12 @@ def do_part_upload(args):
                  name, the part number, part offset, part size
     """
     # Multiprocessing args lameness
-    bucket_name, mpu_id, fname, i, start, size = args
+    bucket_name, mpu_id, fname, i, start, size, secure, max_tries, current_tries = args
     logger.debug("do_part_upload got args: %s" % (args,))
 
     # Connect to S3, get the MultiPartUpload
     s3 = boto.connect_s3(calling_format=OrdinaryCallingFormat())
+    s3.is_secure = secure
     bucket = s3.lookup(bucket_name)
     mpu = None
     for mp in bucket.list_multipart_uploads():
@@ -67,28 +71,35 @@ def do_part_upload(args):
     def progress(x,y):
         logger.debug("Part %d: %0.2f%%" % (i+1, 100.*x/y))
 
-    # Do the upload
-    t1 = time.time()
-    mpu.upload_part_from_file(StringIO(data), i+1, cb=progress)
+    try:
+        # Do the upload
+        t1 = time.time()
+        mpu.upload_part_from_file(StringIO(data), i+1, cb=progress)
 
-    # Print some timings
-    t2 = time.time() - t1
-    s = len(data)/1024./1024.
-    logger.info("Uploaded part %s (%0.2fM) in %0.2fs at %0.2fMbps" % (i+1, s, t2, s/t2))
+        # Print some timings
+        t2 = time.time() - t1
+        s = len(data)/1024./1024.
+        logger.info("Uploaded part %s (%0.2fM) in %0.2fs at %0.2fMBps" % (i+1, s, t2, s/t2))
+    except Exception, err:
+        logger.debug("Retry request %d of max %d times" % (current_tries, max_tries))
+        if (current_tries > max_tries):
+            logger.error(err)
+        else:
+            time.sleep(3)
+            current_tries += 1
+            do_part_download(bucket_name, mpu_id, fname, i, start, size, secure, max_tries, current_tries)
 
-def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=False, verbose=False, quiet=False):
+def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=False, verbose=False, quiet=False, secure=True, max_tries=5):
     # Check that dest is a valid S3 url
     split_rs = urlparse.urlsplit(dest)
     if split_rs.scheme != "s3":
         raise ValueError("'%s' is not an S3 url" % dest)
 
-    # To support buckets with mixed/upper case.  Apparently s3 no longer support case???
     s3 = boto.connect_s3(calling_format=OrdinaryCallingFormat())
-
+    s3.is_secure = secure
     bucket = s3.lookup(split_rs.netloc)
     if bucket == None:
-      raise ValueError("'%s' is not a valid bucket" % split_rs.netloc)
-
+        raise ValueError("'%s' is not a valid bucket" % split_rs.netloc)
     key = bucket.get_key(split_rs.path)
     # See if we're overwriting an existing key
     if key is not None:
@@ -109,7 +120,7 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
         k.set_contents_from_file(src)
         t2 = time.time() - t1
         s = size/1024./1024.
-        logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMbps)" % (s, t2, s/t2))
+        logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMBps)" % (s, t2, s/t2))
         return
 
     # Create the multi-part upload object
@@ -121,10 +132,10 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
         for i in range(num_parts+1):
             part_start = part_size*i
             if i == (num_parts-1) and fold_last is True:
-                yield (bucket.name, mpu.id, src.name, i, part_start, part_size*2)
+                yield (bucket.name, mpu.id, src.name, i, part_start, part_size*2, secure, max_tries, 0)
                 break
             else:
-                yield (bucket.name, mpu.id, src.name, i, part_start, part_size)
+                yield (bucket.name, mpu.id, src.name, i, part_start, part_size, secure, max_tries, 0)
 
 
     # If the last part is less than 5M, just fold it into the previous part
@@ -142,7 +153,7 @@ def main(src, dest, num_processes=2, split=50, force=False, reduced_redundancy=F
         # Finalize
         src.close()
         mpu.complete_upload()
-        logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMbps)" % (s, t2, s/t2))
+        logger.info("Finished uploading %0.2fM in %0.2fs (%0.2fMBps)" % (s, t2, s/t2))
     except KeyboardInterrupt:
         logger.warn("Received KeyboardInterrupt, canceling upload")
         pool.terminate()
