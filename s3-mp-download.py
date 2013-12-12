@@ -97,7 +97,6 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
     if os.path.isdir(dest):
         filename = split_rs.path.split('/')[-1]
         dest = os.path.join(dest, filename)
-        print filename, dest
 
     if os.path.exists(dest):
         if force:
@@ -162,7 +161,6 @@ def main(src, dest, num_processes=2, split=32, force=False, verbose=False, quiet
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     args = parser.parse_args()
-    print args
     arg_dict = vars(args)
     if arg_dict['quiet'] == True:
         logger.setLevel(logging.WARNING)
